@@ -1,0 +1,38 @@
+###############################################################################
+# ros2_control controller manager + controllers for the two-wheel robot.
+#
+# Loaded by gazebo_ros2_control via the URDF <plugin> tag. The
+# spawner nodes in gazebo.launch.py bring up the controllers in order.
+###############################################################################
+
+controller_manager:
+  ros__parameters:
+    update_rate: 200          # Hz -- must be >> pendulum natural freq (~6.7 Hz)
+    use_sim_time: true
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    effort_controllers:
+      type: effort_controllers/JointGroupEffortController
+
+###############################################################################
+# joint_state_broadcaster reads all joint states from the GazeboSystem hardware
+# and publishes them as /joint_states (sensor_msgs/JointState).
+###############################################################################
+joint_state_broadcaster:
+  ros__parameters:
+    use_sim_time: true
+
+###############################################################################
+# effort_controllers receives a Float64MultiArray on
+#   /effort_controllers/commands   (data = [tau_left, tau_right])
+# and writes those efforts to the joints in the order listed below.
+###############################################################################
+effort_controllers:
+  ros__parameters:
+    use_sim_time: true
+    joints:
+      - left_wheel_joint
+      - right_wheel_joint
+    interface_name: effort

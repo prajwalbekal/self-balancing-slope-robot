@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# ROS 2 build artifacts (never inside src/, but just in case)
+build/
+install/
+log/
+
+# Editor / OS
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store

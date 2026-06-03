@@ -1,0 +1,343 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <world name="house">
+
+    <!-- ====== Physics ====== -->
+    <gravity>0 0 -9.81</gravity>
+    <physics name="default_physics" type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+      <ode>
+        <solver>
+          <type>quick</type>
+          <iters>100</iters>
+          <sor>1.3</sor>
+        </solver>
+        <constraints>
+          <cfm>0.0</cfm>
+          <erp>0.2</erp>
+          <contact_max_correcting_vel>100.0</contact_max_correcting_vel>
+          <contact_surface_layer>0.001</contact_surface_layer>
+        </constraints>
+      </ode>
+    </physics>
+
+    <!-- ====== Lighting ====== -->
+    <include><uri>model://sun</uri></include>
+
+    <light name="ambient_light" type="ambient">
+      <cast_shadows>false</cast_shadows>
+      <diffuse>0.4 0.4 0.4 1</diffuse>
+      <specular>0.1 0.1 0.1 1</specular>
+    </light>
+
+    <!-- ====== Ground plane (for physics) ====== -->
+    <include><uri>model://ground_plane</uri></include>
+
+    <!-- ====== Gazebo state plugin ====== -->
+    <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so">
+      <ros><namespace>/gazebo</namespace></ros>
+      <update_rate>10.0</update_rate>
+    </plugin>
+
+    <!-- ====================================================
+         FLOOR  (visual only — collision handled by ground_plane)
+         ==================================================== -->
+    <model name="floor">
+      <static>true</static>
+      <pose>0 0 0.001 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>10 8 0.002</size></box></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Wood</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ====================================================
+         OUTER WALLS
+         ==================================================== -->
+
+    <!-- North wall: center (0, 4.075, 1.25), size (10.3, 0.15, 2.5) -->
+    <model name="wall_north">
+      <static>true</static>
+      <pose>0 4.075 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>10.3 0.15 2.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>10.3 0.15 2.5</size></box></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Grey</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- South wall: center (0, -4.075, 1.25), size (10.3, 0.15, 2.5) -->
+    <model name="wall_south">
+      <static>true</static>
+      <pose>0 -4.075 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>10.3 0.15 2.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>10.3 0.15 2.5</size></box></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Grey</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- West wall: center (-5.075, 0, 1.25), size (0.15, 8.3, 2.5) -->
+    <model name="wall_west">
+      <static>true</static>
+      <pose>-5.075 0 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.15 8.3 2.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.15 8.3 2.5</size></box></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Grey</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- East wall: center (5.075, 0, 1.25), size (0.15, 8.3, 2.5) -->
+    <model name="wall_east">
+      <static>true</static>
+      <pose>5.075 0 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.15 8.3 2.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.15 8.3 2.5</size></box></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Grey</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ====================================================
+         INTERIOR WALL y=1  (3 segments, 2 door openings each 2 m wide)
+         Door to Bedroom: x=[-3,-1] gap
+         Door to Kitchen: x=[1,3] gap
+         Seg A: center (-4, 1.075, 1.25), size (2, 0.15, 2.5)
+         Seg B: center (0,  1.075, 1.25), size (2, 0.15, 2.5)
+         Seg C: center (4,  1.075, 1.25), size (2, 0.15, 2.5)
+         ==================================================== -->
+
+    <model name="wall_interior_y1_segA">
+      <static>true</static>
+      <pose>-4 1.075 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>2 0.15 2.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>2 0.15 2.5</size></box></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Grey</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="wall_interior_y1_segB">
+      <static>true</static>
+      <pose>0 1.075 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>2 0.15 2.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>2 0.15 2.5</size></box></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Grey</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="wall_interior_y1_segC">
+      <static>true</static>
+      <pose>4 1.075 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>2 0.15 2.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>2 0.15 2.5</size></box></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Grey</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ====================================================
+         INTERIOR WALL x=0  (Bedroom/Kitchen divider, 2 segments, 1.5 m door)
+         Door: y=[1.75, 3.25]
+         Seg A: center (0.075, 1.375, 1.25), size (0.15, 0.75, 2.5)
+         Seg B: center (0.075, 3.625, 1.25), size (0.15, 0.75, 2.5)
+         ==================================================== -->
+
+    <model name="wall_interior_x0_segA">
+      <static>true</static>
+      <pose>0.075 1.375 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.15 0.75 2.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.15 0.75 2.5</size></box></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Grey</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="wall_interior_x0_segB">
+      <static>true</static>
+      <pose>0.075 3.625 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.15 0.75 2.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.15 0.75 2.5</size></box></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Grey</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ====================================================
+         FURNITURE
+         ==================================================== -->
+
+    <!-- Sofa (Living Room): center (-3, -1, 0.25), size (1.5, 0.7, 0.5) -->
+    <model name="furniture_sofa">
+      <static>true</static>
+      <pose>-3 -1 0.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>1.5 0.7 0.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>1.5 0.7 0.5</size></box></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Blue</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Coffee table (Living Room): center (-3, -2.5, 0.2), size (0.8, 0.5, 0.4) -->
+    <model name="furniture_coffee_table">
+      <static>true</static>
+      <pose>-3 -2.5 0.2 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.8 0.5 0.4</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.8 0.5 0.4</size></box></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/DarkYellow</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Dining table (Kitchen): center (3, 2, 0.4), size (1.2, 0.8, 0.8) -->
+    <model name="furniture_dining_table">
+      <static>true</static>
+      <pose>3 2 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>1.2 0.8 0.8</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>1.2 0.8 0.8</size></box></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/DarkYellow</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Bed (Bedroom): center (-3, 2.5, 0.25), size (2.0, 1.5, 0.5) -->
+    <model name="furniture_bed">
+      <static>true</static>
+      <pose>-3 2.5 0.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>2.0 1.5 0.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>2.0 1.5 0.5</size></box></geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Blue</name>
+            </script>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>

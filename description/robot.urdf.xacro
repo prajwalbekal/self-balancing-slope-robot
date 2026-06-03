@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="two_wheel_robot">
+
+  <!--
+    Top-level xacro. Compose the robot from modular pieces so the same
+    description can be loaded with or without simulation-only tags.
+
+    Usage:
+      xacro robot.urdf.xacro                 > robot.urdf              # full sim
+      xacro robot.urdf.xacro use_sim:=false  > robot.urdf              # no gazebo tags
+  -->
+
+  <xacro:arg name="use_sim" default="true"/>
+  <xacro:arg name="use_ros2_control" default="true"/>
+  <xacro:arg name="use_mesh_visuals" default="true"/>
+
+  <xacro:include filename="$(find two_wheel_robot)/description/inertial_macros.xacro"/>
+  <xacro:include filename="$(find two_wheel_robot)/description/robot_core.xacro"/>
+
+  <xacro:if value="$(arg use_sim)">
+    <xacro:if value="$(arg use_ros2_control)">
+      <xacro:include filename="$(find two_wheel_robot)/description/ros2_control.xacro"/>
+    </xacro:if>
+    <xacro:include filename="$(find two_wheel_robot)/description/gazebo.xacro"/>
+  </xacro:if>
+
+</robot>

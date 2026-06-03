@@ -1,0 +1,192 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!--
+    Core robot description: links + joints + visuals + collisions + inertials.
+    Geometry was extracted from a SolidWorks STEP file via FreeCAD; mass and
+    inertia values are derived from per-part densities and closed-form
+    primitives (well-conditioned, immune to FP cancellation).
+
+    Frame convention (URDF / ROS REP-103):
+        X = forward     Y = left     Z = up
+    base_link origin sits between the two wheels at ground level.
+  -->
+
+  <!-- ============ Robot constants (single source of truth) ============ -->
+  <xacro:property name="wheel_radius"     value="0.075"/>
+  <xacro:property name="wheel_width"      value="0.050"/>
+  <xacro:property name="wheel_separation" value="0.345"/>
+
+  <xacro:property name="base_mass"  value="12.1121"/>
+  <xacro:property name="base_sx"    value="0.50"/>    <!-- forward extent (collision + inertia) -->
+  <xacro:property name="base_sy"    value="0.25"/>    <!-- lateral extent (collision + inertia; kept inside wheel inner faces at ±0.147 m) -->
+  <xacro:property name="base_sz"    value="0.455"/>   <!-- vertical extent -->
+  <xacro:property name="base_cog_z" value="0.293"/>   <!-- COG height above ground -->
+
+  <xacro:property name="wheel_mass" value="0.585317"/>
+
+  <xacro:property name="imu_offset_z" value="0.15"/>
+
+  <!-- ============ Materials (for RViz) ============ -->
+  <material name="chassis_grey"><color rgba="0.50 0.55 0.60 1.0"/></material>
+  <material name="wheel_black">  <color rgba="0.10 0.10 0.10 1.0"/></material>
+  <material name="imu_orange">   <color rgba="0.90 0.60 0.10 1.0"/></material>
+
+  <!-- ============ base_footprint (planar reference, used by Nav2 etc.) ============ -->
+  <link name="base_footprint"/>
+
+  <joint name="base_footprint_to_base_link" type="fixed">
+    <parent link="base_footprint"/>
+    <child  link="base_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ============ base_link ============ -->
+  <link name="base_link">
+    <xacro:if value="$(arg use_mesh_visuals)">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="file://$(find two_wheel_robot)/meshes/base_link.stl" scale="1 1 1"/>
+        </geometry>
+        <material name="chassis_grey"/>
+      </visual>
+    </xacro:if>
+    <xacro:unless value="$(arg use_mesh_visuals)">
+      <visual>
+        <origin xyz="0 0 ${base_cog_z - 0.02}" rpy="0 0 0"/>
+        <geometry>
+          <box size="${base_sx} ${base_sy} ${base_sz}"/>
+        </geometry>
+        <material name="chassis_grey"/>
+      </visual>
+    </xacro:unless>
+    <collision>
+      <origin xyz="0 0 ${base_cog_z - 0.02}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${base_sx} ${base_sy} ${base_sz}"/>
+      </geometry>
+    </collision>
+    <xacro:inertial_box mass="${base_mass}" x="${base_sx}" y="${base_sy}" z="${base_sz}">
+      <origin xyz="0 0 ${base_cog_z}" rpy="0 0 0"/>
+    </xacro:inertial_box>
+  </link>
+
+  <!-- ============ left_wheel_link ============ -->
+  <link name="left_wheel_link">
+    <xacro:if value="$(arg use_mesh_visuals)">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="file://$(find two_wheel_robot)/meshes/left_wheel_link.stl" scale="1 1 1"/>
+        </geometry>
+        <material name="wheel_black"/>
+      </visual>
+    </xacro:if>
+    <xacro:unless value="$(arg use_mesh_visuals)">
+      <visual>
+        <origin xyz="0 0 0" rpy="1.5707963 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+        <material name="wheel_black"/>
+      </visual>
+    </xacro:unless>
+    <collision>
+      <origin xyz="0 0 0" rpy="1.5707963 0 0"/>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+      </geometry>
+    </collision>
+    <xacro:inertial_cylinder_y mass="${wheel_mass}" radius="${wheel_radius}" length="${wheel_width}">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </xacro:inertial_cylinder_y>
+  </link>
+
+  <joint name="left_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child  link="left_wheel_link"/>
+    <origin xyz="0 ${wheel_separation / 2} ${wheel_radius}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <dynamics damping="0.01" friction="0.001"/>
+  </joint>
+
+  <!-- ============ right_wheel_link ============ -->
+  <link name="right_wheel_link">
+    <xacro:if value="$(arg use_mesh_visuals)">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="file://$(find two_wheel_robot)/meshes/right_wheel_link.stl" scale="1 1 1"/>
+        </geometry>
+        <material name="wheel_black"/>
+      </visual>
+    </xacro:if>
+    <xacro:unless value="$(arg use_mesh_visuals)">
+      <visual>
+        <origin xyz="0 0 0" rpy="1.5707963 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+        <material name="wheel_black"/>
+      </visual>
+    </xacro:unless>
+    <collision>
+      <origin xyz="0 0 0" rpy="1.5707963 0 0"/>
+      <geometry>
+        <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+      </geometry>
+    </collision>
+    <xacro:inertial_cylinder_y mass="${wheel_mass}" radius="${wheel_radius}" length="${wheel_width}">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </xacro:inertial_cylinder_y>
+  </link>
+
+  <joint name="right_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child  link="right_wheel_link"/>
+    <origin xyz="0 -${wheel_separation / 2} ${wheel_radius}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <dynamics damping="0.01" friction="0.001"/>
+  </joint>
+
+  <!-- ============ imu_link ============ -->
+  <link name="imu_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.025 0.025 0.005"/>
+      </geometry>
+      <material name="imu_orange"/>
+    </visual>
+    <xacro:inertial_box mass="0.01" x="0.025" y="0.025" z="0.005">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </xacro:inertial_box>
+  </link>
+
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="imu_link"/>
+    <origin xyz="0 0 ${imu_offset_z}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ============ lidar_link ============ -->
+  <link name="lidar_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.04" length="0.05"/></geometry>
+      <material name="chassis_grey"/>
+    </visual>
+    <!-- No collision: sensor only; avoids ODE penetration with chassis top -->
+    <xacro:inertial_box mass="0.15" x="0.08" y="0.08" z="0.05">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </xacro:inertial_box>
+  </link>
+
+  <joint name="lidar_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="lidar_link"/>
+    <origin xyz="0 0 0.55" rpy="0 0 0"/>
+  </joint>
+
+</robot>

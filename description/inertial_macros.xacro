@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!--
+    Reusable inertia macros for primitive shapes. All inputs in SI units
+    (kilograms, metres). Each macro emits a complete <inertial> block,
+    so use it at the top of any <link>.
+
+    Off-diagonal terms are zero because the primitives' principal axes are
+    aligned with the link frame; if you tilt a primitive, expand the macro.
+  -->
+
+  <xacro:macro name="inertial_box" params="mass x y z *origin">
+    <inertial>
+      <xacro:insert_block name="origin"/>
+      <mass value="${mass}"/>
+      <inertia
+        ixx="${(1.0/12.0) * mass * (y*y + z*z)}"
+        iyy="${(1.0/12.0) * mass * (x*x + z*z)}"
+        izz="${(1.0/12.0) * mass * (x*x + y*y)}"
+        ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+  </xacro:macro>
+
+  <!-- Solid cylinder, axis along Y (wheel-style). -->
+  <xacro:macro name="inertial_cylinder_y" params="mass radius length *origin">
+    <inertial>
+      <xacro:insert_block name="origin"/>
+      <mass value="${mass}"/>
+      <inertia
+        ixx="${(1.0/12.0) * mass * (3*radius*radius + length*length)}"
+        iyy="${0.5 * mass * radius*radius}"
+        izz="${(1.0/12.0) * mass * (3*radius*radius + length*length)}"
+        ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+  </xacro:macro>
+
+  <!-- Solid sphere. -->
+  <xacro:macro name="inertial_sphere" params="mass radius *origin">
+    <inertial>
+      <xacro:insert_block name="origin"/>
+      <mass value="${mass}"/>
+      <inertia
+        ixx="${0.4 * mass * radius*radius}"
+        iyy="${0.4 * mass * radius*radius}"
+        izz="${0.4 * mass * radius*radius}"
+        ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+  </xacro:macro>
+
+</robot>
