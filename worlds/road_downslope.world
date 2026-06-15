@@ -1,0 +1,250 @@
+<?xml version="1.0"?>
+<!--
+  road_downslope.world - straight road that DESCENDS an 8 degree decline.
+
+  Layout (along +X, road width 2.5 m, kerbs at y = +/-1.35):
+
+      x = 0 ........ 6      flat section (top, z = 0)
+      x = 6 ........ 12     decline, 8 deg downhill (drop = 6*tan(8) = 0.843245 m)
+      x = 12 ....... 18.2   lower flat at z = -0.843245
+
+  This is the DOWNHILL counterpart of road_slope.world (which climbed).
+  The robot spawns on the upper flat at z = 0, drives +X, rolls over the
+  brow at x = 6, descends the 8 deg decline, and levels out on the lower
+  flat.  Gravity now ASSISTS forward motion, so the balance controller must
+  hold the robot back (a negative/braking gravity feed-forward) and stay
+  vertical while descending.
+
+  Geometry notes (mirror of the uphill world):
+    - ONE continuous polyline collision body (a single trimesh) so the top
+      surface is C0 continuous - the wheel rolls over the brow (x=6) and the
+      foot (x=12) with no seam, no gap, no double contact, no step.  Separate
+      collision bodies caused ramp-entry tip-over in the uphill world (ODE
+      double-contact / edge-jam); a single polyline avoids both.
+    - Profile drawn in the polyline's local XY plane (local x = road position,
+      local y = height), extruded 3.0 m along local +Z (road width).  Rolled
+      +90 deg about X so local x -> world x, local y -> world z, local z ->
+      world y (pose y=+1.5 recentres width to y in [-1.5,1.5]).
+    - Convex brow at x=6 (flat -> downhill) is rounded with a parabolic
+      fillet so the wheel cannot pitch/launch off the edge into a runaway
+      descent.  Concave foot at x=12 (downhill -> flat) is rounded so the
+      cylinder wheel cannot catch on the sharp trimesh edge (the ODE
+      trimesh-cylinder jam that stalled the uphill robot at its ramp foot).
+    - mu=100 and kp=1e6/kd=1 match the proven uphill contact parameters; the
+      effective friction stays governed by the wheels (0.8).  Required
+      friction to hold an 8 deg slope is tan(8)=0.14 - ample margin.
+-->
+<sdf version="1.6">
+  <world name="road_downslope_world">
+
+    <include><uri>model://sun</uri></include>
+
+    <!-- ============== CONTINUOUS ROAD COLLISION (single body) ============= -->
+    <!--
+      Top-surface profile (local x = road-x, local y = height):
+        (0,0) -> flat -> brow fillet at x=6 -> 8 deg decline ->
+        foot fillet at x=12 -> lower flat at y=-0.843245 -> (18.2,-0.843245).
+      Bottom edge held at y=-1.5 so the body is solid below the lower flat.
+    -->
+    <model name="road_collision">
+      <static>true</static>
+      <link name="link">
+        <pose>0 1.5 0 1.5707963 0 0</pose>
+        <collision name="collision">
+          <geometry>
+            <polyline>
+              <!-- bottom edge (well below the lowest road point) -->
+              <point>0 -1.5</point>
+              <point>18.2 -1.5</point>
+              <!-- up the right side to the lower-flat top surface -->
+              <point>18.2 -0.843245</point>
+              <!-- lower flat traversed high-x -> low-x at y = -0.843245 -->
+              <point>12.2 -0.843245</point>
+              <!-- Concave FOOT fillet (decline->flat) over x in [11.8, 12.2]:
+                   y = -0.843245 + 0.1756*(x-12.2)^2, tangent to the lower flat
+                   (slope 0) at x=12.2 and to the 8 deg decline (slope -0.1405)
+                   at x=11.8.  Rounds the sharp concave edge so the wheel cannot
+                   jam on it (ODE trimesh-cylinder artifact). -->
+              <point>12.1 -0.84149</point>
+              <point>12.0 -0.83622</point>
+              <point>11.9 -0.82744</point>
+              <point>11.8 -0.81515</point>
+              <!-- straight 8 deg decline, from the foot fillet up to the brow
+                   fillet (single segment 11.8 -> 7.0) -->
+              <point>7.0 -0.14054</point>
+              <!-- Convex BROW fillet (flat->decline) — a LONG, gentle vertical
+                   curve over x in [5.0, 7.0]:  y = -0.035135*(x-5.0)^2, tangent
+                   to the upper flat (slope 0) at x=5.0 and to the 8 deg decline
+                   (slope -0.1405) at x=7.0.  R ~ 14 m (vs ~3 m for a tight
+                   fillet).  The descent onset is spread over 2 m so the robot
+                   does not get a sudden gravity-acceleration spike at the brow
+                   that the braking loop then over-corrects into a backward tip. -->
+              <point>6.5 -0.07905</point>
+              <point>6.0 -0.03514</point>
+              <point>5.5 -0.00878</point>
+              <point>5.0 0</point>
+              <!-- upper flat back to the origin -->
+              <point>0 0</point>
+              <height>3.0</height>
+            </polyline>
+          </geometry>
+          <surface>
+            <friction><ode><mu>100.0</mu><mu2>100.0</mu2></ode></friction>
+            <contact><ode><kp>1e6</kp><kd>1.0</kd><min_depth>0.001</min_depth></ode></contact>
+          </surface>
+        </collision>
+      </link>
+    </model>
+
+    <physics type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+
+    <!-- ================= UPPER FLAT VISUALS (x 0-6, z=0) ================= -->
+    <model name="road_flat">
+      <static>true</static>
+      <link name="link">
+        <visual name="surface">
+          <pose>3.0 0 0.002 0 0 0</pose>
+          <geometry><box><size>6.0 2.5 0.004</size></box></geometry>
+          <material><script><name>Gazebo/DarkGrey</name></script></material>
+        </visual>
+        <visual name="kerb_left">
+          <pose>3.0 1.35 0.05 0 0 0</pose>
+          <geometry><box><size>6.0 0.15 0.10</size></box></geometry>
+          <material><script><name>Gazebo/White</name></script></material>
+        </visual>
+        <visual name="kerb_right">
+          <pose>3.0 -1.35 0.05 0 0 0</pose>
+          <geometry><box><size>6.0 0.15 0.10</size></box></geometry>
+          <material><script><name>Gazebo/White</name></script></material>
+        </visual>
+        <visual name="dash_1">
+          <pose>1.0 0 0.005 0 0 0</pose>
+          <geometry><box><size>0.8 0.12 0.004</size></box></geometry>
+          <material><script><name>Gazebo/Yellow</name></script></material>
+        </visual>
+        <visual name="dash_2">
+          <pose>3.0 0 0.005 0 0 0</pose>
+          <geometry><box><size>0.8 0.12 0.004</size></box></geometry>
+          <material><script><name>Gazebo/Yellow</name></script></material>
+        </visual>
+        <visual name="dash_3">
+          <pose>5.0 0 0.005 0 0 0</pose>
+          <geometry><box><size>0.8 0.12 0.004</size></box></geometry>
+          <material><script><name>Gazebo/Yellow</name></script></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ============ DECLINE (x 6-12, 8 deg downhill, VISUAL only) ======== -->
+    <!-- pitch = +0.139626 rad tilts the +X end DOWN.  Top face lies along the
+         decline line (6,0)->(12,-0.843245); slab centre offset 0.15 m below
+         that face along its normal.  Collision is the continuous body above. -->
+    <model name="decline">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <pose>8.979 0 -0.570168 0 0.139626 0</pose>
+          <geometry><box><size>6.06 3.0 0.30</size></box></geometry>
+          <material><script><name>Gazebo/DarkGrey</name></script></material>
+        </visual>
+        <visual name="kerb_left">
+          <pose>8.979 1.35 -0.361 0 0.139626 0</pose>
+          <geometry><box><size>6.06 0.15 0.10</size></box></geometry>
+          <material><script><name>Gazebo/White</name></script></material>
+        </visual>
+        <visual name="kerb_right">
+          <pose>8.979 -1.35 -0.361 0 0.139626 0</pose>
+          <geometry><box><size>6.06 0.15 0.10</size></box></geometry>
+          <material><script><name>Gazebo/Yellow</name></script></material>
+        </visual>
+        <visual name="dash_1">
+          <pose>7.0 0 -0.1265 0 0.139626 0</pose>
+          <geometry><box><size>0.8 0.12 0.004</size></box></geometry>
+          <material><script><name>Gazebo/Yellow</name></script></material>
+        </visual>
+        <visual name="dash_2">
+          <pose>9.0 0 -0.4216 0 0.139626 0</pose>
+          <geometry><box><size>0.8 0.12 0.004</size></box></geometry>
+          <material><script><name>Gazebo/Yellow</name></script></material>
+        </visual>
+        <visual name="dash_3">
+          <pose>11.0 0 -0.7167 0 0.139626 0</pose>
+          <geometry><box><size>0.8 0.12 0.004</size></box></geometry>
+          <material><script><name>Gazebo/Yellow</name></script></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ============ LOWER FLAT (x 12-18.2, z=-0.843245, VISUAL) ========== -->
+    <!-- A solid fill box (top at z=-0.841) hides the gap under the descent,
+         plus a thin road surface and kerbs/dashes on top. -->
+    <model name="lower_flat">
+      <static>true</static>
+      <link name="link">
+        <visual name="fill">
+          <pose>15.1 0 -1.171623 0 0 0</pose>
+          <geometry><box><size>6.2 2.5 0.656754</size></box></geometry>
+          <material><script><name>Gazebo/Grey</name></script></material>
+        </visual>
+        <visual name="surface">
+          <pose>15.1 0 -0.841 0 0 0</pose>
+          <geometry><box><size>6.2 2.5 0.004</size></box></geometry>
+          <material><script><name>Gazebo/DarkGrey</name></script></material>
+        </visual>
+        <visual name="kerb_left">
+          <pose>15.1 1.35 -0.793245 0 0 0</pose>
+          <geometry><box><size>6.2 0.15 0.10</size></box></geometry>
+          <material><script><name>Gazebo/White</name></script></material>
+        </visual>
+        <visual name="kerb_right">
+          <pose>15.1 -1.35 -0.793245 0 0 0</pose>
+          <geometry><box><size>6.2 0.15 0.10</size></box></geometry>
+          <material><script><name>Gazebo/White</name></script></material>
+        </visual>
+        <visual name="dash_1">
+          <pose>13.0 0 -0.839 0 0 0</pose>
+          <geometry><box><size>0.8 0.12 0.004</size></box></geometry>
+          <material><script><name>Gazebo/Yellow</name></script></material>
+        </visual>
+        <visual name="dash_2">
+          <pose>15.0 0 -0.839 0 0 0</pose>
+          <geometry><box><size>0.8 0.12 0.004</size></box></geometry>
+          <material><script><name>Gazebo/Yellow</name></script></material>
+        </visual>
+        <visual name="dash_3">
+          <pose>17.0 0 -0.839 0 0 0</pose>
+          <geometry><box><size>0.8 0.12 0.004</size></box></geometry>
+          <material><script><name>Gazebo/Yellow</name></script></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ================= START / END POSTS (visual only) =============== -->
+    <model name="start_post">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <pose>0 0 0.5 0 0 0</pose>
+          <geometry><cylinder><radius>0.05</radius><length>1.0</length></cylinder></geometry>
+          <material><script><name>Gazebo/Red</name></script></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="end_post">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <pose>18.0 0 -0.343245 0 0 0</pose>
+          <geometry><cylinder><radius>0.05</radius><length>1.0</length></cylinder></geometry>
+          <material><script><name>Gazebo/Blue</name></script></material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>

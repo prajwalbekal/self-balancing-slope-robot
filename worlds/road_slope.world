@@ -1,0 +1,251 @@
+<?xml version="1.0"?>
+<!--
+  road_slope.world - straight road with an 8 degree ramp and elevated plateau.
+
+  Layout (along +X, road width 2.5 m, kerbs at y = +/-1.35):
+
+      x = 0 ........ 6      flat section (ground plane, z = 0)
+      x = 6 ........ 12     ramp, 8 deg incline (rise = 6 * tan(8) = 0.843245 m)
+      x = 12 ....... 18     elevated plateau at z = 0.843245
+
+  Geometry notes (all values exact, see SLOPE_README.md for derivation):
+    - The ramp is a single 0.3 m thick slab rotated pitch = -0.139626 rad
+      (-8 deg, +X end up). It is extended 0.15 m PAST its downhill end so
+      that the entry seam is buried ~2 cm below the ground plane - the
+      wheels roll onto the ramp with no lip.
+    - The uphill end of the ramp top surface lands at exactly
+      (x=12, z=0.843245), flush with the plateau top. Knife-edge seam,
+      no step.
+    - Ramp/plateau friction mu=100 mirrors the default ground_plane, so
+      the effective contact friction stays governed by the wheels (0.8).
+      Required friction for 8 deg is tan(8) = 0.14, ample margin.
+
+  Robot spawns at x = 0.8 facing +X (same as road.world) and drives
+  ~15.5 m of wheel-path: 5.2 m flat + 6.06 m of ramp + ~4.2 m of plateau.
+-->
+<sdf version="1.6">
+  <world name="road_slope_world">
+
+    <include><uri>model://sun</uri></include>
+
+    <!-- ============== CONTINUOUS ROAD COLLISION (single body) ============= -->
+    <!--
+      ONE seamless collision surface for the whole profile: flat (x 0-6) ->
+      8 deg ramp (x 6-12) -> plateau (x 12-18.2).  This replaces the three
+      separate collision bodies (ground_plane + ramp + plateau).
+
+      WHY a single body:  Any seam between two separate collision geometries
+      caused tip-over at ramp entry:
+        - Infinite ground_plane + ramp poking through  -> ODE fired TWO
+          contacts with different normals (flat vs 8 deg) at the crossover,
+          a net forward impulse that pitched the robot over.
+        - Finite flat box ending at x=5.99 + buried ramp -> an 11 mm notch
+          at the seam; the wheel dropped off the box edge and JAMMED against
+          the ramp end face (observed: v->0, then a violent -25 m/s ejection).
+
+      A polyline extrusion is a SINGLE trimesh, so the top surface is C0
+      continuous: the wheel rolls over the concave (x=6) and convex (x=12)
+      corners with no seam, no gap, no double contact, no step.
+
+      Construction: 2-D road profile drawn in the polyline's local XY plane
+      (local x = road position, local y = height), extruded 3.0 m along
+      local +Z (road width).  The model is rolled +90 deg about X so:
+          local x -> world x (along road)
+          local y -> world z (height)
+          local z -> world y (width)   (pose y=+1.5 recentres to y in [-1.5,1.5])
+      Top surface vertices: (0,0)->(6,0)->(12,0.843245)->(18.2,0.843245).
+      mu=100 and kp=1e6/kd=1 match the proven ramp contact parameters.
+    -->
+    <model name="road_collision">
+      <static>true</static>
+      <link name="link">
+        <pose>0 1.5 0 1.5707963 0 0</pose>
+        <collision name="collision">
+          <geometry>
+            <polyline>
+              <point>0 -0.5</point>
+              <point>18.2 -0.5</point>
+              <point>18.2 0.843245</point>
+              <!-- Convex crest (ramp→plateau) rounded with a parabolic fillet
+                   over x in [11.8, 12.2]:  y = 0.843245 - 0.1756*(x-12.2)^2,
+                   tangent to the 8° ramp at 11.8 and to the flat plateau at
+                   12.2.  A sharp crest let the robot pitch/launch over it and
+                   overspeed onto the plateau; rounding it keeps wheel contact
+                   and smooths the transition. -->
+              <point>12.2 0.843245</point>
+              <point>12.1 0.84149</point>
+              <point>12.0 0.83623</point>
+              <point>11.9 0.82745</point>
+              <point>11.8 0.81515</point>
+              <!-- Ramp surface, traversed high-x -> low-x.  The flat->ramp
+                   junction at x=6 is a CONCAVE corner: a cylinder wheel
+                   rolling into the sharp trimesh edge there catches on it
+                   (ODE trimesh-cylinder artifact), jamming the robot at the
+                   ramp foot.  Replace the sharp (6,0) vertex with a smooth
+                   parabolic fillet over x in [5.8, 6.2]:
+                       y = 0.1756*(x-5.8)^2
+                   which is tangent to the flat (slope 0) at x=5.8 and to the
+                   8 deg ramp (slope 0.1405) at x=6.2 — no edge to catch. -->
+              <point>6.2 0.02810</point>
+              <point>6.1 0.01580</point>
+              <point>6.0 0.00702</point>
+              <point>5.9 0.00176</point>
+              <point>5.8 0</point>
+              <point>0 0</point>
+              <height>3.0</height>
+            </polyline>
+          </geometry>
+          <surface>
+            <friction><ode><mu>100.0</mu><mu2>100.0</mu2></ode></friction>
+            <contact><ode><kp>1e6</kp><kd>1.0</kd><min_depth>0.001</min_depth></ode></contact>
+          </surface>
+        </collision>
+      </link>
+    </model>
+
+    <physics type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+
+    <!-- ================= FLAT SECTION VISUALS (x 0-6) ================= -->
+    <model name="road_flat">
+      <static>true</static>
+      <link name="link">
+        <visual name="surface">
+          <pose>3.0 0 0.002 0 0 0</pose>
+          <geometry><box><size>6.0 2.5 0.004</size></box></geometry>
+          <material><script><name>Gazebo/DarkGrey</name></script></material>
+        </visual>
+        <visual name="kerb_left">
+          <pose>3.0 1.35 0.05 0 0 0</pose>
+          <geometry><box><size>6.0 0.15 0.10</size></box></geometry>
+          <material><script><name>Gazebo/White</name></script></material>
+        </visual>
+        <visual name="kerb_right">
+          <pose>3.0 -1.35 0.05 0 0 0</pose>
+          <geometry><box><size>6.0 0.15 0.10</size></box></geometry>
+          <material><script><name>Gazebo/White</name></script></material>
+        </visual>
+        <visual name="dash_1">
+          <pose>1.0 0 0.005 0 0 0</pose>
+          <geometry><box><size>0.8 0.12 0.004</size></box></geometry>
+          <material><script><name>Gazebo/Yellow</name></script></material>
+        </visual>
+        <visual name="dash_2">
+          <pose>3.0 0 0.005 0 0 0</pose>
+          <geometry><box><size>0.8 0.12 0.004</size></box></geometry>
+          <material><script><name>Gazebo/Yellow</name></script></material>
+        </visual>
+        <visual name="dash_3">
+          <pose>5.0 0 0.005 0 0 0</pose>
+          <geometry><box><size>0.8 0.12 0.004</size></box></geometry>
+          <material><script><name>Gazebo/Yellow</name></script></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ================= RAMP (x 6-12, 8 deg, COLLIDABLE) ============= -->
+    <model name="ramp">
+      <static>true</static>
+      <link name="link">
+        <!-- collision now provided by the continuous road_collision body -->
+        <visual name="visual">
+          <pose>8.946606 0 0.262644 0 -0.139626 0</pose>
+          <geometry><box><size>6.208965 3.0 0.30</size></box></geometry>
+          <material><script><name>Gazebo/DarkGrey</name></script></material>
+        </visual>
+        <!-- kerbs riding on the ramp surface (visual only) -->
+        <visual name="kerb_left">
+          <pose>8.993041 1.35 0.471136 0 -0.139626 0</pose>
+          <geometry><box><size>6.06 0.15 0.10</size></box></geometry>
+          <material><script><name>Gazebo/White</name></script></material>
+        </visual>
+        <visual name="kerb_right">
+          <pose>8.993041 -1.35 0.471136 0 -0.139626 0</pose>
+          <geometry><box><size>6.06 0.15 0.10</size></box></geometry>
+          <material><script><name>Gazebo/Yellow</name></script></material>
+        </visual>
+        <!-- centre dashes on the slope (visual only) -->
+        <visual name="dash_1">
+          <pose>7.0 0 0.1445 0 -0.139626 0</pose>
+          <geometry><box><size>0.8 0.12 0.004</size></box></geometry>
+          <material><script><name>Gazebo/Yellow</name></script></material>
+        </visual>
+        <visual name="dash_2">
+          <pose>9.0 0 0.4256 0 -0.139626 0</pose>
+          <geometry><box><size>0.8 0.12 0.004</size></box></geometry>
+          <material><script><name>Gazebo/Yellow</name></script></material>
+        </visual>
+        <visual name="dash_3">
+          <pose>11.0 0 0.7067 0 -0.139626 0</pose>
+          <geometry><box><size>0.8 0.12 0.004</size></box></geometry>
+          <material><script><name>Gazebo/Yellow</name></script></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ================= PLATEAU (x 12-18.2, COLLIDABLE) =============== -->
+    <model name="plateau">
+      <static>true</static>
+      <link name="link">
+        <!-- collision now provided by the continuous road_collision body -->
+        <visual name="visual">
+          <pose>15.1 0 0.421623 0 0 0</pose>
+          <geometry><box><size>6.2 3.0 0.843245</size></box></geometry>
+          <material><script><name>Gazebo/DarkGrey</name></script></material>
+        </visual>
+        <visual name="kerb_left">
+          <pose>15.1 1.35 0.893245 0 0 0</pose>
+          <geometry><box><size>6.2 0.15 0.10</size></box></geometry>
+          <material><script><name>Gazebo/White</name></script></material>
+        </visual>
+        <visual name="kerb_right">
+          <pose>15.1 -1.35 0.893245 0 0 0</pose>
+          <geometry><box><size>6.2 0.15 0.10</size></box></geometry>
+          <material><script><name>Gazebo/White</name></script></material>
+        </visual>
+        <visual name="dash_1">
+          <pose>13.0 0 0.846245 0 0 0</pose>
+          <geometry><box><size>0.8 0.12 0.004</size></box></geometry>
+          <material><script><name>Gazebo/Yellow</name></script></material>
+        </visual>
+        <visual name="dash_2">
+          <pose>15.0 0 0.846245 0 0 0</pose>
+          <geometry><box><size>0.8 0.12 0.004</size></box></geometry>
+          <material><script><name>Gazebo/Yellow</name></script></material>
+        </visual>
+        <visual name="dash_3">
+          <pose>17.0 0 0.846245 0 0 0</pose>
+          <geometry><box><size>0.8 0.12 0.004</size></box></geometry>
+          <material><script><name>Gazebo/Yellow</name></script></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ================= START / END POSTS (visual only) =============== -->
+    <model name="start_post">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <pose>0 0 0.5 0 0 0</pose>
+          <geometry><cylinder><radius>0.05</radius><length>1.0</length></cylinder></geometry>
+          <material><script><name>Gazebo/Red</name></script></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="end_post">
+      <static>true</static>
+      <link name="link">
+        <visual name="visual">
+          <pose>18.0 0 1.343245 0 0 0</pose>
+          <geometry><cylinder><radius>0.05</radius><length>1.0</length></cylinder></geometry>
+          <material><script><name>Gazebo/Blue</name></script></material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>
