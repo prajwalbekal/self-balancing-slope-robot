@@ -5,19 +5,48 @@ A self-balancing two-wheel robot for **ROS 2 Humble + Gazebo Classic 11**.
 Generated from a SolidWorks 2026 STEP export via FreeCAD, packaged with `xacro`,
 `ros2_control` (effort interface), and a cascade-PD balance controller.
 
+It balances on flat ground, **climbs an 8° ramp**, and **descends an 8° decline**
+while self-balancing the whole way.
+
 ```
 description/                 xacro robot description (split into 4 files)
 config/controllers.yaml      ros2_control: joint_state_broadcaster + effort_controllers
 worlds/empty.world           ground plane + sun, 1 kHz ODE physics
+worlds/road.world            18 m straight road with kerbs and start/end markers
+worlds/road_slope.world      flat → 8° uphill ramp → plateau
+worlds/road_downslope.world  flat top → 8° decline → lower flat
 launch/view.launch.py        RViz only, no physics
 launch/gazebo_view.launch.py Gazebo paused, CAD mesh visual inspection
 launch/gazebo_teleop.launch.py Gazebo paused, CAD mesh keyboard teleop demo
 launch/gazebo.launch.py      Gazebo + ros2_control + balance controller
+launch/road.launch.py        autonomous straight-road driving demo
+launch/road_slope.launch.py  uphill ramp-climb scenario
+launch/road_downslope.launch.py  downhill descent scenario
 launch/teleop.launch.py      keyboard teleop in an xterm
 scripts/balance_controller.py  cascade-PD self-balancing controller
 meshes/                      base_link.stl + L/R wheel STLs (in meters)
 rviz/view.rviz               minimal RViz layout
+docs/                        slope-balancing report (md + pdf) and debug log
+media/                       demo recordings (flat road, slope) + preview gif
 ```
+
+## Demo
+
+The robot driving the flat road, then climbing and descending the 8° slopes:
+
+![Slope balancing demo](media/slope_demo.gif)
+
+Full-resolution recordings:
+
+- [`media/flat_road_demo.mp4`](media/flat_road_demo.mp4) — autonomous flat-road drive
+- [`media/slope_demo.mp4`](media/slope_demo.mp4) — uphill climb and downhill descent
+
+## Documentation
+
+- **[Slope Balancing Report](docs/Slope_Balancing_Report.md)** ([PDF](docs/Slope_Balancing_Report.pdf)) —
+  a full technical write-up of the engineering problems, root-cause analysis and control solutions
+  behind the flat / uphill / downhill balancing.
+- **[Debug Log](docs/DEBUG_LOG.md)** — chronological development notes and bug fixes.
 
 ## Robot summary
 
