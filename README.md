@@ -27,7 +27,7 @@ scripts/balance_controller.py  cascade-PD self-balancing controller
 meshes/                      base_link.stl + L/R wheel STLs (in meters)
 rviz/view.rviz               minimal RViz layout
 docs/                        slope-balancing report (md + pdf) and debug log
-media/                       demo recordings (flat road, slope) + preview gif
+media/                       slope_demo.gif preview animation
 ```
 
 ## Demo
@@ -35,11 +35,6 @@ media/                       demo recordings (flat road, slope) + preview gif
 The robot driving the flat road, then climbing and descending the 8° slopes:
 
 ![Slope balancing demo](media/slope_demo.gif)
-
-Full-resolution recordings:
-
-- [`media/flat_road_demo.mp4`](media/flat_road_demo.mp4) — autonomous flat-road drive
-- [`media/slope_demo.mp4`](media/slope_demo.mp4) — uphill climb and downhill descent
 
 ## Documentation
 
