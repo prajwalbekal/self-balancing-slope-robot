@@ -5,8 +5,14 @@ A self-balancing two-wheel robot for **ROS 2 Humble + Gazebo Classic 11**.
 Generated from a SolidWorks 2026 STEP export via FreeCAD, packaged with `xacro`,
 `ros2_control` (effort interface), and a cascade-PD balance controller.
 
-It balances on flat ground, **climbs an 8° ramp**, and **descends an 8° decline**
-while self-balancing the whole way.
+It balances on flat ground, **climbs an 8° ramp**, and makes a **slow, controlled
+descent of an 8° decline** (~0.10 m/s, upright) while self-balancing the whole way.
+
+> **Downslope status:** the decline descent is slow and stable. A clean
+> *stop-and-hold* at the foot of the decline is not yet implemented — this
+> velocity-only controller arrives at the bottom carrying momentum, so it does
+> not yet settle to a held stop there. A position / station-keeping outer loop
+> is the planned next step (see the `launch/road_downslope.launch.py` docstring).
 
 ```
 description/                 xacro robot description (split into 4 files)
