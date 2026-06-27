@@ -147,6 +147,30 @@ class BalanceController(Node):
         # DOES brake, so open the clamp here to let it see and shed the real
         # speed.  Default 2.0 = effectively off (unchanged elsewhere).
         self.declare_parameter("max_v_est_stop",     2.0)   # m/s
+        # Speed-estimate ceiling used ONLY by the gravity/brake feed-forward
+        # integrator (tau_ff), decoupled from the tight `max_v_est` the velocity
+        # LEAN loop sees.  Rationale: on a descent the brake must react to the
+        # REAL overspeed (so it needs a loose ceiling to see it), but feeding that
+        # same large speed error to the LEAN loop makes it command a backward lean
+        # that the inner loop first achieves by driving the wheels FORWARD
+        # (non-minimum-phase) — which on a decline accelerates the robot downhill
+        # and tips it.  The feed-forward is a DIRECT wheel-torque term with no such
+        # inversion, so it is safe to let it see true speed.  Decoupling them lets
+        # the brake engage fast while the lean loop stays blind/tight.
+        # Default <=0 => disabled: the feed-forward uses the same `max_v_est` as
+        # the lean loop (flat/uphill behaviour unchanged).
+        self.declare_parameter("max_v_est_ff",      -1.0)   # m/s; <=0 = use max_v_est
+        # Proportional speed-damping brake (N·m per m/s of overspeed), applied
+        # DIRECTLY to the wheel torque using the loose/true speed view — NOT via a
+        # target lean.  This is the stable way to regulate descent speed: it is
+        # pure velocity feedback (dissipative when braking) so it cannot trigger
+        # the non-minimum-phase lean inversion that makes the velocity LEAN loop
+        # tip the robot on a decline.  tau_speed = kv_brake * (cmd - v_true); when
+        # the robot overspeeds downhill (v_true > cmd) this is negative = braking.
+        # The integral tau_ff cancels the steady gravity pull; this proportional
+        # term holds the speed near the command on top of it.  Default 0 = off
+        # (flat/uphill unchanged).
+        self.declare_parameter("kv_brake",           0.0)    # N·m per (m/s) overspeed
         self.declare_parameter("robot_mass",      13.28)   # kg total, for slope estimate
         # Robot geometry
         self.declare_parameter("wheel_radius",     0.075)
@@ -357,6 +381,12 @@ class BalanceController(Node):
         # can see and brake the real residual speed (it's on flat ground here).
         if abs(self.cmd_linear) < gp("stop_cmd_gate").value:
             v_est_max = max(v_est_max, gp("max_v_est_stop").value)
+        # Loose ceiling for the brake feed-forward (sees real overspeed so it can
+        # react fast on a descent).  <=0 => fall back to the lean-loop ceiling.
+        v_est_ff_max = gp("max_v_est_ff").value
+        if v_est_ff_max <= 0.0:
+            v_est_ff_max = v_est_max
+        kv_brake = gp("kv_brake").value
         k_yaw    = gp("k_yaw").value
         r        = gp("wheel_radius").value
         ws       = gp("wheel_separation").value
@@ -414,8 +444,12 @@ class BalanceController(Node):
         v_wheel  = 0.5 * r * (self.wheel_vel_l + self.wheel_vel_r)
         max_dv   = a_lim * self.dt
         self.v_est += clamp(v_wheel - self.v_est, -max_dv, max_dv)
-        self.v_est = clamp(self.v_est, -v_est_max, v_est_max)   # backstop vs pathological sustained slip
-        v_robot  = self.v_est
+        # Store the estimate clamped to the LOOSE feed-forward ceiling (still
+        # rejects pathological sustained slip, just at a higher threshold) so the
+        # brake feed-forward can see a real descent overspeed.
+        self.v_est = clamp(self.v_est, -v_est_ff_max, v_est_ff_max)
+        v_robot     = clamp(self.v_est, -v_est_max,    v_est_max)     # TIGHT view -> lean loop
+        v_robot_ff  = self.v_est                                       # LOOSE view -> brake feed-forward
         yaw_rate = r * (self.wheel_vel_r - self.wheel_vel_l) / ws
 
         # ----- Outer loop: velocity error -> target pitch -----
@@ -434,7 +468,10 @@ class BalanceController(Node):
             self._publish(tau_l, tau_r)
             return
 
-        v_err = self.cmd_linear - v_robot
+        v_err = self.cmd_linear - v_robot          # TIGHT view -> lean loop
+        # Brake feed-forward sees the LOOSE-clamped speed so it reacts to a real
+        # descent overspeed the tight lean-loop view is blind to (see max_v_est_ff).
+        v_err_ff = self.cmd_linear - v_robot_ff
 
         # ----- Gravity feed-forward (slope compensation, NEW) -----
         # Slow torque-level integrator with conditional anti-windup.  On an
@@ -452,10 +489,10 @@ class BalanceController(Node):
         # the velocity clamp, which pins v_err at -0.22 and can't tell the
         # robot is slowing.  Bleeding to zero just removes the excess so the
         # robot coasts down to a clean cruise/stop on the plateau.
-        if v_err < -ff_dec_v and abs(self.cmd_linear) < ff_dec_gate:
+        if v_err_ff < -ff_dec_v and abs(self.cmd_linear) < ff_dec_gate:
             self.tau_ff *= max(0.0, 1.0 - ff_decay * self.dt)
         else:
-            cand_ff = self.tau_ff + ki_tau * v_err * self.dt
+            cand_ff = self.tau_ff + ki_tau * v_err_ff * self.dt
             if -max_ff < cand_ff < max_ff:
                 self.tau_ff = cand_ff
 
@@ -484,8 +521,12 @@ class BalanceController(Node):
                              -max_lean, max_lean)
 
         # ----- Inner loop: pitch error -> balancing torque (+ feed-forward) -----
+        # tau_speed: proportional speed-damping brake on the wheels, using the
+        # loose/true speed view (v_err_ff).  Direct torque, no lean inversion, so
+        # it regulates the descent speed without the decline tip.
+        tau_speed  = kv_brake * v_err_ff
         pitch_err  = pitch - target_pitch
-        tau_balance = kp_p * pitch_err + kd_p * pitch_rate + 0.5 * self.tau_ff
+        tau_balance = kp_p * pitch_err + kd_p * pitch_rate + 0.5 * self.tau_ff + tau_speed
 
         # ----- Yaw mixing -----
         yaw_err = self.cmd_angular - yaw_rate
@@ -507,6 +548,7 @@ class BalanceController(Node):
                 self._diag_cnt = 0
                 self.get_logger().info(
                     f"[diag] p={pitch:+.3f} tp={target_pitch:+.3f} "
+                    f"v={v_robot:+.3f} vff={v_robot_ff:+.3f} "
                     f"verr={v_err:+.3f} vint={self.vel_integral:+.3f} "
                     f"tff={self.tau_ff:+.3f} tL={tau_l:+.2f} tR={tau_r:+.2f} "
                     f"wL={self.wheel_vel_l:+.2f} wR={self.wheel_vel_r:+.2f}")

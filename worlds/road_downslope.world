@@ -59,18 +59,32 @@
               <!-- up the right side to the lower-flat top surface -->
               <point>18.2 -0.843245</point>
               <!-- lower flat traversed high-x -> low-x at y = -0.843245 -->
-              <point>12.2 -0.843245</point>
-              <!-- Concave FOOT fillet (decline->flat) over x in [11.8, 12.2]:
-                   y = -0.843245 + 0.1756*(x-12.2)^2, tangent to the lower flat
-                   (slope 0) at x=12.2 and to the 8 deg decline (slope -0.1405)
-                   at x=11.8.  Rounds the sharp concave edge so the wheel cannot
-                   jam on it (ODE trimesh-cylinder artifact). -->
-              <point>12.1 -0.84149</point>
-              <point>12.0 -0.83622</point>
-              <point>11.9 -0.82744</point>
-              <point>11.8 -0.81515</point>
+              <point>13.0 -0.843245</point>
+              <!-- Concave FOOT fillet (decline->flat), LENGTHENED to a long
+                   gentle 2 m curve over x in [11.0, 13.0]:
+                     y = -0.843245 + 0.035135*(x-13.0)^2
+                   tangent to the lower flat (slope 0) at x=13.0 and to the 8 deg
+                   decline (slope -0.1405) at x=11.0.  R ~ 14 m (the same gentle
+                   radius as the brow), vs the old tight 0.4 m / R~3 m fillet.
+                   The old sharp foot made the wheel break traction (slip to
+                   100+ rad/s) so the robot pitched forward off it; spreading the
+                   decline->flat transition over 2 m lets it hold the slow ~0.10
+                   m/s cruise much further down.  (A clean STOP-and-hold at the
+                   very bottom still needs a position-hold outer loop — see the
+                   launch-file "KNOWN LIMITATION" note — but the slow descent
+                   itself is solid.) -->
+              <point>12.8 -0.841840</point>
+              <point>12.6 -0.837623</point>
+              <point>12.4 -0.830596</point>
+              <point>12.2 -0.820759</point>
+              <point>12.0 -0.808110</point>
+              <point>11.8 -0.792651</point>
+              <point>11.6 -0.774380</point>
+              <point>11.4 -0.753299</point>
+              <point>11.2 -0.729408</point>
+              <point>11.0 -0.702705</point>
               <!-- straight 8 deg decline, from the foot fillet up to the brow
-                   fillet (single segment 11.8 -> 7.0) -->
+                   fillet (single segment 11.0 -> 7.0) -->
               <point>7.0 -0.14054</point>
               <!-- Convex BROW fillet (flat->decline) — a LONG, gentle vertical
                    curve over x in [5.0, 7.0]:  y = -0.035135*(x-5.0)^2, tangent

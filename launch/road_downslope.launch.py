@@ -33,6 +33,24 @@ Sequence (identical to road_slope.launch.py):
   6.  balance_controller (use_sim_time=False)
   7.  2 s later: unpause_physics
   8.  5 s later: odom_publisher + road_driver
+
+STATUS / KNOWN LIMITATION:
+  SLOW DESCENT — DONE.  With the decoupled brake feed-forward (max_v_est_ff)
+  and the gentle 2 m foot fillet, the robot descends the 8 deg decline at a
+  steady, controllable ~0.10 m/s, staying upright (pitch ~0).  This is the
+  achieved goal.
+
+  STOP-AND-HOLD AT THE BOTTOM — FUTURE WORK.  The robot does not yet come to
+  a clean, held stop at the foot.  This controller is VELOCITY-only: it has
+  no position setpoint, and on a downslope the stiff balance loop cancels any
+  net braking torque (it can hold a speed but cannot drive the speed below the
+  gravity-set equilibrium).  So it reaches the foot still carrying momentum,
+  the wheels break traction at the transition, and it pitches forward.
+  Tuning (max_torque, linear_vel, the foot fillet, the stop clamp) does NOT
+  fix this — it needs a POSITION / station-keeping outer loop that decelerates
+  to a target stop-point and holds it (arriving at true v=0, no momentum to
+  slip on).  That is a controller change, not a parameter, and is left as the
+  next task.
 """
 import os
 import subprocess
@@ -165,7 +183,25 @@ def generate_launch_description():
             #     Slip itself is prevented by the sub-traction max_torque cap.
             #     0.15 while driving keeps the descent stable; opened at the stop
             #     (max_v_est_stop) so the halt can brake the real residual speed.
+            #
+            #     *** "KEEP IT SLOW FROM THE BROW" ***  The LEAN loop stays blind
+            #     at 0.15 on purpose: a larger view makes it command a backward
+            #     lean that the inner loop achieves by first driving the wheels
+            #     FORWARD (non-minimum-phase) — on a decline that accelerates the
+            #     robot, and once it is already fast the back-lean correction goes
+            #     violently unstable (±25° pitch swings observed at 0.25-0.45).
+            #     So we do NOT use the lean loop to brake the descent.  Instead the
+            #     BRAKE feed-forward gets its OWN loose view (max_v_est_ff) and
+            #     holds the descent at its low entry speed from the brow onward —
+            #     it cancels gravity before the robot can build speed, so the lean
+            #     loop never has to deal with a fast robot.
             "max_v_est":      0.15,
+            # Loose ceiling for the brake feed-forward: it sees the true descent
+            # overspeed (up to 1.0 m/s) and winds the gravity-cancelling torque in
+            # under a second at the brow — fast enough to stop the robot building
+            # speed — while still rejecting the >1 m/s readings a real wheel slip
+            # would produce.  This is the key change that holds the descent slow.
+            "max_v_est_ff":   1.0,
             "max_v_est_stop": 2.0,
             # Gravity feed-forward integrator: on the descent v_err goes
             # persistently negative (gravity speeds the robot up), so this winds
@@ -174,10 +210,16 @@ def generate_launch_description():
             # tau_ff to its -4 N·m clamp the instant the robot overspeed at the
             # brow, and that max braking + the velocity-loop lean over-corrected
             # into a BACKWARD tip.  A slow build lets braking come on smoothly.
-            "ki_tau":       5.0,
-            # max_tau_ff 2.0: holding 8° needs only 1.36 N·m, so cap the braking
-            # feed-forward near that — it cannot wind to a tip-inducing -4 N·m.
-            "max_tau_ff":   2.0,
+            # ki_tau 5 -> 6: now that the brake sees the REAL overspeed
+            # (max_v_est_ff) its v_err_ff is large at the brow, so even a modest
+            # gain winds the holding/braking torque in <1 s — fast enough to catch
+            # the brow before gravity runs the robot away.
+            "ki_tau":       6.0,
+            # max_tau_ff 2.0 -> 2.5: holding 8° needs ~1.36 N·m, but the brake must
+            # briefly exceed that to DECELERATE a transient overspeed back to the
+            # setpoint; 2.5 gives margin while the ff_decay gate still bleeds it to
+            # zero at the stop so it can't tip the halted robot.
+            "max_tau_ff":   2.5,
             # *** Downhill feed-forward management ***
             # The braking feed-forward must BUILD while descending but RELEASE
             # when the robot is told to stop (else the wound-up -2 N·m brake
@@ -206,6 +248,17 @@ def generate_launch_description():
             "ki_vel":       0.06,
             "max_vel_integral": 0.5,
             "safety_pitch": 0.70,   # ~40 deg tip-over threshold
+            # ---- Inertial sensing ----
+            # The GYROSCOPE is always in use: imu.angular_velocity.y feeds the
+            # inner-loop derivative (kd_pitch) damping every cycle — it's what
+            # keeps the balance critically damped.
+            # The ACCELEROMETER fusion (complementary filter) is left OFF for now:
+            # enabling it destabilised this controller (the stiff inner loop turns
+            # the accel's specific-force bias into a limit cycle), so pitch stays
+            # on the reliable Gazebo orientation source.  Re-enabling accel fusion
+            # needs a softer inner loop + higher cf_alpha and is a separate effort.
+            "use_complementary_filter": False,
+            "cf_alpha":     0.98,
         }],
         output="screen",
     )
@@ -236,7 +289,11 @@ def generate_launch_description():
         parameters=[{
             "use_sim_time": False,
             "road_length":  15.5,
-            "linear_vel":    0.05,   # slow; gravity assists, so a low command keeps the descent speed controllable
+            # 0.05 m/s — a low descent command.  The decoupled brake feed-forward
+            # (max_v_est_ff) holds the robot at this entry speed all the way down
+            # the decline ("keep it slow from the brow"), so the downhill speed
+            # stays close to the flat cruise instead of running away under gravity.
+            "linear_vel":    0.05,
             "decel_zone":    2.0,
             "heading_kp":    0.4,
             "start_delay":   3.0,
