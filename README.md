@@ -351,7 +351,7 @@ Hardware interface declaration. Each wheel gets:
 | Wheels spin both same direction, robot doesn't balance | pitch sign wrong | `ros2 param set /balance_controller pitch_sign -1.0` |
 | Robot oscillates wildly | gains too high | halve `kp_pitch`, retune |
 | Robot flops over immediately | gains too low, or sign wrong | first try sign flip, then raise `kp_pitch` |
-| `RLException: Couldn't process file ...xacro` | xacro syntax error in the file you just edited | run `xacro description/robot.urdf.xacro use_sim:=true` to see the error |
+| `RLException: Couldn't process file ...xacro` | xacro syntax error in the file i edited | run `xacro description/robot.urdf.xacro use_sim:=true` to see the error |
 | Gazebo crashes on launch | GPU driver issue in WSL | `export LIBGL_ALWAYS_SOFTWARE=1` before launching |
 | Robot drifts slowly even with `cmd_vel=0` | IMU mounting bias | log resting pitch, set `pitch_offset` to that value |
 
